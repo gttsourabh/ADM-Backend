@@ -10,6 +10,7 @@ const dutySchema = new mongoose.Schema(
     travellerName: { type: String, default: '' },
     travellerDesignation: { type: String, default: '' },
     travellerPhone: { type: String, default: '' },
+    airportAuthorityPhone: { type: String, default: '' },
     date: { type: String, required: true },
     reportingTime: { type: String, required: true },
     guestArrivalTime: { type: String, default: null },
@@ -25,10 +26,16 @@ const dutySchema = new mongoose.Schema(
     pnrNo: { type: String, default: '' },
     flightTime: { type: String, required: true },
     pdfAttachment: {
-      filename: { type: String, default: '' },
-      url: { type: String, default: '' },
-      storagePath: { type: String, default: '' },
-      uploadedAt: { type: Date, default: null },
+      fileId:      { type: String, default: '' },
+      filename:    { type: String, default: '' },
+      mimeType:    { type: String, default: '' },
+      size:        { type: Number, default: 0 },
+      checksum:    { type: String, default: '' },
+      data:        { type: Buffer },               // MongoDB binary (new uploads)
+      uploadedAt:  { type: Date,   default: null },
+      // Legacy Cloudinary fields — kept for backward compatibility
+      storagePath: { type: String, default: '' },  // Cloudinary public_id
+      url:         { type: String, default: '' },  // Cloudinary URL
     },
     airportId: { type: mongoose.Schema.Types.ObjectId, ref: 'Airport', required: true },
     airportName: { type: String, required: true },
@@ -56,15 +63,23 @@ const dutySchema = new mongoose.Schema(
         ret.id = ret._id.toString();
         ret.officerId = ret.officerId?.toString ? ret.officerId.toString() : ret.officerId;
         ret.createdBy = ret.createdBy?.toString ? ret.createdBy.toString() : ret.createdBy;
-        if (ret.pdfAttachment && ret.pdfAttachment.url) {
+
+        // Never expose binary data in API responses — only expose metadata
+        const hasData = !!ret.pdfAttachment?.data;
+        const hasLegacyUrl = !!(ret.pdfAttachment?.storagePath || ret.pdfAttachment?.url);
+        if (hasData || hasLegacyUrl) {
           ret.pdfAttachment = {
-            filename: ret.pdfAttachment.filename,
-            url: ret.pdfAttachment.url,
+            fileId:     ret.pdfAttachment.fileId,
+            filename:   ret.pdfAttachment.filename,
+            mimeType:   ret.pdfAttachment.mimeType,
+            size:       ret.pdfAttachment.size,
             uploadedAt: ret.pdfAttachment.uploadedAt,
-            hasFile: true,
+            hasFile:    true,
           };
-          delete ret.pdfAttachment.storagePath;
+        } else {
+          ret.pdfAttachment = { hasFile: false };
         }
+
         delete ret._id;
         delete ret.__v;
         return ret;
