@@ -216,6 +216,8 @@ exports.updateDuty = async (req, res, next) => {
       'travellerName', 'travellerDesignation', 'travellerPhone', 'airportAuthorityPhone', 'remark',
     ];
     const duty = await Duty.findById(req.params.id);
+      console.log("trying to update duty",)
+
     if (!duty) return res.status(404).json({ message: 'Duty not found' });
     for (const field of allowed) {
       if (req.body[field] !== undefined) duty[field] = req.body[field];

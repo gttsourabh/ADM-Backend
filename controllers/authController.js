@@ -17,6 +17,7 @@ const findUser = identifier =>
   });
 
 exports.sendOTP = async (req, res, next) => {
+  console.log("send otp called")
   try {
     const { identifier, password } = req.body;
     if (!identifier || !password)
