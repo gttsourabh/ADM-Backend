@@ -1,27 +1,18 @@
 const mongoose = require('mongoose');
-const dns = require('dns');
 
-// Windows DNS stub resolver refuses TCP SRV queries; use Google DNS instead
-dns.setServers(['8.8.8.8', '8.8.4.4']);
+const dbURI = process.env.MONGODB_URI;
 
-let cached = global._mongooseConnection;
-if (!cached) cached = global._mongooseConnection = { conn: null, promise: null };
-
-const connectDB = async () => {
-  if (cached.conn) return cached.conn;
-
-  const mongoURI = process.env.MONGODB_URI;
-  if (!mongoURI) throw new Error('MONGODB_URI environment variable is not set');
-
-  if (!cached.promise) {
-    cached.promise = mongoose.connect(mongoURI, { bufferCommands: false }).then(m => {
-      console.log(`MongoDB connected: ${m.connection.host}`);
-      return m;
-    });
+async function connectDB() {
+  if (mongoose.connection.readyState === 1) {
+    return;
   }
-
-  cached.conn = await cached.promise;
-  return cached.conn;
-};
+  try {
+    await mongoose.connect(dbURI);
+    console.log('Successfully connected to MongoDB via Mongoose!');
+  } catch (error) {
+    console.error('Database connection failed:', error.message);
+    process.exit(1);
+  }
+}
 
 module.exports = connectDB;

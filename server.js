@@ -6,8 +6,6 @@ const swaggerSpec = require('./swagger');
 const connectDB = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
 
-connectDB();
-
 const app = express();
 
 app.use(cors({
@@ -15,7 +13,9 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+
 app.use(express.json({ limit: '50mb' }));
+
 app.use((req, _res, next) => { console.log(`→ ${req.method} ${req.path}`); next(); });
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
@@ -25,6 +25,16 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
   customSiteTitle: 'Airport Protocol API Docs',
   swaggerOptions: { persistAuthorization: true },
 }));
+
+// Ensure MongoDB is connected before handling any API routes
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
 
 app.use('/api/v1/auth', require('./routes/auth'));
 
@@ -51,7 +61,15 @@ app.use(errorHandler);
 
 if (require.main === module) {
   const PORT = process.env.PORT || 5000;
-  app.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
+  connectDB()
+    .then(() => {
+      app.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
+    })
+    .catch(err => {
+      console.error('Failed to connect to MongoDB:', err.message);
+      process.exit(1);
+    });
 }
 
 module.exports = app;
+
