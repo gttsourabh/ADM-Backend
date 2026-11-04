@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const { sendOtpSms } = require('../utils/sms');
 
@@ -17,7 +18,7 @@ const findUser = identifier =>
   });
 
 exports.sendOTP = async (req, res, next) => {
-  console.log("send otp called")
+
   try {
     const { identifier, password } = req.body;
     if (!identifier || !password)
@@ -57,13 +58,20 @@ exports.sendOTP = async (req, res, next) => {
 
 exports.verifyOTP = async (req, res, next) => {
   try {
-    const { userId, otp } = req.body;
-    if (!userId || !otp)
+    const { userId, identifier, otp } = req.body;
+    const lookupKey = userId || identifier;
+    if (!lookupKey || !otp)
       return res.status(400).json({ message: 'User ID and OTP are required' });
 
-    const user = await User.findById(userId).select('+otp +otpExpiry');
+    let user;
+    if (mongoose.Types.ObjectId.isValid(lookupKey)) {
+      user = await User.findById(lookupKey).select('+otp +otpExpiry');
+    }
+    if (!user) {
+      user = await findUser(lookupKey).select('+otp +otpExpiry');
+    }
     if (!user)
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ message: 'User not found. Please provide the userId returned by send-otp (or your username/email/phone).' });
 
     if (!user.otp || user.otp !== otp)
       return res.status(401).json({ message: 'Invalid OTP. Please check and try again.' });
@@ -82,17 +90,24 @@ exports.verifyOTP = async (req, res, next) => {
 
 exports.resendOTP = async (req, res, next) => {
   try {
-    const { userId } = req.body;
-    if (!userId)
+    const { userId, identifier } = req.body;
+    const lookupKey = userId || identifier;
+    if (!lookupKey)
       return res.status(400).json({ message: 'User ID is required' });
 
-    const user = await User.findById(userId);
+    let user;
+    if (mongoose.Types.ObjectId.isValid(lookupKey)) {
+      user = await User.findById(lookupKey);
+    }
+    if (!user) {
+      user = await findUser(lookupKey);
+    }
     if (!user) return res.status(404).json({ message: 'User not found' });
     if (!user.isEnabled) return res.status(403).json({ message: 'Account disabled.' });
 
     const otp = generateOTP();
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
-    await User.findByIdAndUpdate(userId, { otp, otpExpiry });
+    await User.findByIdAndUpdate(user._id, { otp, otpExpiry });
 
     const smsSent = await sendOtpSms(user.phone, otp);
 

@@ -5,6 +5,7 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./swagger');
 const connectDB = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
+const apiLogger = require('./middleware/apiLogger');
 
 const app = express();
 
@@ -16,7 +17,8 @@ app.use(cors({
 
 app.use(express.json({ limit: '50mb' }));
 
-app.use((req, _res, next) => { console.log(`→ ${req.method} ${req.path}`); next(); });
+// Detailed API request & response console logger
+app.use(apiLogger);
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
